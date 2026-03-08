@@ -87,15 +87,21 @@ if ! ctr version >/dev/null 2>&1; then
 	exit 1
 fi
 
-CRI_LINE="$(sudo ctr plugins ls 2>/dev/null | awk '/io.containerd.grpc.v1.cri|io.containerd.cri.v1.runtime/ {print; exit}')"
-if [[ -z "$CRI_LINE" ]]; then
-	log_error "CRI plugin not detected in containerd. kubeadm will fail to connect to RuntimeService."
+CRI_RUNTIME_LINE="$(sudo ctr plugins ls 2>/dev/null | awk '
+	(
+	  ($1 == "io.containerd.cri.v1" && $2 == "runtime") ||
+	  ($1 == "io.containerd.grpc.v1" && $2 == "cri")
+	) { print; exit }
+')"
+
+if [[ -z "$CRI_RUNTIME_LINE" ]]; then
+	log_error "CRI runtime plugin not detected in containerd. kubeadm will fail to connect to RuntimeService."
 	sudo ctr plugins ls || true
 	exit 1
 fi
 
-if ! grep -Eq '\bok\b' <<<"$CRI_LINE"; then
-	log_error "CRI plugin found but not healthy: $CRI_LINE"
+if ! grep -Eq '\bok\b' <<<"$CRI_RUNTIME_LINE"; then
+	log_error "CRI runtime plugin found but not healthy: $CRI_RUNTIME_LINE"
 	sudo ctr plugins ls || true
 	exit 1
 fi
