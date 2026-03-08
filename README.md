@@ -69,14 +69,20 @@ watch kubectl get tigerastatus
 
 ## :warning: Known Installation Errors
 
-### Bug in `install-cni.sh` (Line 19)
+### `E: Unable to locate package kubelet|kubeadm|kubectl`
 
-```bash
-# INCORRECT - This is command substitution, not variable expansion
-if [[ $(CLUSTER_CIDR) = "" ]]
+Cause: Kubernetes apt repository was not configured on the host.
 
-# CORRECT - Should be:
-if [[ $CLUSTER_CIDR = "" ]]
-```
+Status: Fixed in `install-k8s.sh` by adding the `pkgs.k8s.io` keyring and repo before package installation.
 
-This bug causes the script to fail with `CLUSTER_CIDR: command not found` when checking if the CIDR variable is set.
+### `kubeadm: command not found` during control-plane init
+
+Cause: Kubernetes packages were not installed (usually due to the repo issue above).
+
+Status: `install.sh` now stops immediately if `install-k8s.sh` fails, so the script does not continue with a broken state.
+
+### `kubectl: command not found` while installing Calico
+
+Cause: CNI step started before Kubernetes components were installed or before kubeconfig/API access was ready.
+
+Status: `install-cni.sh` now validates `kubectl` exists and that the Kubernetes API is reachable before continuing.

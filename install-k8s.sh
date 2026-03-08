@@ -1,52 +1,72 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-echo "Starting installation of kubernetes components for Ubuntu 24.04"
+set -Eeuo pipefail
 
-sudo apt update
-echo "Installing: kubelet, kubeadm, kubectl"
-sudo apt -y install kubelet kubeadm kubectl
+K8S_CHANNEL="${K8S_CHANNEL:-v1.35}"
 
-echo "Holding: kubelet, kubeadm, kubectl"
-sudo apt-mark hold kubelet kubeadm kubectl
+log_info() { echo "[INFO] $1"; }
+log_step() { echo -e "\n[STEP] $1"; }
+log_ok() { echo "[ OK ] $1"; }
+log_error() { echo "[ERR ] $1" >&2; }
 
-_KUBELET_VERSION=$(kubelet --version | grep -Po '(?<=Kubernetes )[^ ]+')
-_KUBECTL_VERSION=$(kubectl version | grep -Po '(?<=Client Version: )[^ ]+')
-_KUBEADM_VERSION=$(kubeadm version | grep -Po '(?<=GitVersion:")[^"]+')
-if [[ $_KUBELET_VERSION = "" ]] 
-then
-    echo "Failed to install kubelet"
+trap 'log_error "Kubernetes component setup failed near line $LINENO."' ERR
+
+log_info "Starting Kubernetes component installation for Ubuntu 24.04"
+
+log_step "Install repository prerequisites"
+sudo apt-get update -y
+sudo apt-get install -y apt-transport-https ca-certificates curl gpg
+log_ok "Prerequisites installed"
+
+log_step "Configure Kubernetes apt repository (${K8S_CHANNEL})"
+sudo mkdir -p /etc/apt/keyrings
+curl -fsSL "https://pkgs.k8s.io/core:/stable:/${K8S_CHANNEL}/deb/Release.key" | \
+    sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+sudo chmod 644 /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/${K8S_CHANNEL}/deb/ /" | \
+    sudo tee /etc/apt/sources.list.d/kubernetes.list >/dev/null
+sudo chmod 644 /etc/apt/sources.list.d/kubernetes.list
+sudo apt-get update -y
+log_ok "Kubernetes repository configured"
+
+log_step "Install kubelet, kubeadm, kubectl"
+sudo apt-get install -y kubelet kubeadm kubectl
+sudo apt-mark hold kubelet kubeadm kubectl >/dev/null
+log_ok "Kubernetes packages installed and pinned"
+
+log_step "Verify installed versions"
+_KUBELET_VERSION="$(kubelet --version | awk '{print $2}')"
+_KUBECTL_VERSION="$(kubectl version --client --output=yaml 2>/dev/null | awk '/gitVersion:/ {print $2; exit}')"
+_KUBEADM_VERSION="$(kubeadm version -o short 2>/dev/null || true)"
+
+if [[ -z "$_KUBELET_VERSION" ]]; then
+    log_error "Failed to verify kubelet installation"
     exit 1
 fi
-if [[ $_KUBECTL_VERSION = "" ]]
-then
-    echo "Failed to install kubectl"
+if [[ -z "$_KUBECTL_VERSION" ]]; then
+    log_error "Failed to verify kubectl installation"
     exit 1
 fi
-if [[ $_KUBEADM_VERSION = "" ]]
-then
-    echo "Failed to install kubeadm"
+if [[ -z "$_KUBEADM_VERSION" ]]; then
+    log_error "Failed to verify kubeadm installation"
     exit 1
-fi
-if [[ $_KUBELET_VERSION != "" && $_KUBECTL_VERSION != "" && $_KUBEADM_VERSION != "" ]]
-then
-    echo "Kubernetes installed successfully"
-    echo "Kubelet version: $_KUBELET_VERSION"
-    echo "Kubectl version: $_KUBECTL_VERSION"
-    echo "Kubeadm version: $_KUBEADM_VERSION"
 fi
 
-# Disable swap
-echo "Disabling swap"
+log_ok "Kubelet version: $_KUBELET_VERSION"
+log_ok "Kubectl version: $_KUBECTL_VERSION"
+log_ok "Kubeadm version: $_KUBEADM_VERSION"
+
+log_step "Disable swap (required by kubelet)"
 sudo swapoff -a
+sudo sed -ri '/\sswap\s/s/^#?/#/' /etc/fstab
 
-# Permanently disable it by commenting out the swap entry in /etc/fstab
-sudo sed -i '/ swap / s/^/#/' /etc/fstab
-
-if [[ "$(free -h | grep -Po '(0B)' | tr '\n' ' ')" != "0B 0B 0B " ]]
-then
-    echo "Failed to disable swap"
+if [[ -n "$(sudo swapon --show --noheadings 2>/dev/null || true)" ]]; then
+    log_error "Swap is still enabled"
     exit 1
 fi
+log_ok "Swap disabled"
 
-sudo systemctl enable kubelet
+log_step "Enable kubelet service"
+sudo systemctl enable kubelet >/dev/null
+log_ok "kubelet enabled"
 

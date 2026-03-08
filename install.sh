@@ -1,43 +1,48 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-CALICO_VERSION="v3.31.4"
-KUBE_VERSION="1.35.0"
+set -Eeuo pipefail
 
-echo "Installing kubernetes 1.35 for Ubuntu 24.04"
+CALICO_VERSION="${CALICO_VERSION:-v3.31.4}"
+KUBE_VERSION="${KUBE_VERSION:-1.35.0}"
 
-# Step 1: Install containerd
-echo "Step 1: Installing containerd"
+log_info() { echo "[INFO] $1"; }
+log_step() { echo -e "\n[STEP] $1"; }
+log_ok() { echo "[ OK ] $1"; }
+log_error() { echo "[ERR ] $1" >&2; }
+
+trap 'log_error "Installation failed near line $LINENO."' ERR
+
+log_info "Installing Kubernetes ${KUBE_VERSION} on Ubuntu 24.04"
+
+log_step "1/5 Install containerd"
 bash install-containerd.sh
+log_ok "Containerd installed"
 
-# Step 2: Install kubernetes components
-echo "Step 2: Installing kubernetes components"
+log_step "2/5 Install Kubernetes components"
 bash install-k8s.sh
+log_ok "Kubernetes components installed"
 
-echo "Kubernetes components installed successfully"
-
-read -p "Is this a control-plane node? (y/n) " IS_CONTROL_PLANE
-if [[ "$IS_CONTROL_PLANE" == "y" || "$IS_CONTROL_PLANE" == "Y" ]]
-then
-    read -p "Enter the desired CIDR for the pod network (default: 192.168.0.0/16): " CLUSTER_CIDR
+read -rp "Is this a control-plane node? (y/n) " IS_CONTROL_PLANE
+if [[ "$IS_CONTROL_PLANE" == "y" || "$IS_CONTROL_PLANE" == "Y" ]]; then
+    read -rp "Enter the desired CIDR for the pod network (default: 192.168.0.0/16): " CLUSTER_CIDR
     CLUSTER_CIDR=${CLUSTER_CIDR:-192.168.0.0/16}
 
-    # Step 3: Initialize Kubernetes cluster with kubeadm
-    echo "Step 3: Initializing Kubernetes cluster with kubeadm"
-    sudo kubeadm init --pod-network-cidr=$CLUSTER_CIDR --kubernetes-version=$KUBE_VERSION
-    echo "Kubernetes cluster initialized successfully"
+    log_step "3/5 Initialize Kubernetes control-plane"
+    sudo kubeadm init --pod-network-cidr="$CLUSTER_CIDR" --kubernetes-version="$KUBE_VERSION"
+    log_ok "Control-plane initialized"
 
-    # Step 4: Set up kubeconfig for the current user
-    echo "Step 4: Setting up kubeconfig for the current user"
-    mkdir -p $HOME/.kube
-    sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
-    sudo chown $(id -u):$(id -g) $HOME/.kube/config
-    echo "Kubeconfig set up successfully"
+    log_step "4/5 Configure kubeconfig for current user"
+    mkdir -p "$HOME/.kube"
+    sudo cp /etc/kubernetes/admin.conf "$HOME/.kube/config"
+    sudo chown "$(id -u):$(id -g)" "$HOME/.kube/config"
+    log_ok "Kubeconfig configured"
 
-    # Step 5: Install Calico network plugin
-    echo "Step 5: Installing Calico network plugin"
-    CLUSTER_CIDR=${CLUSTER_CIDR:-192.168.0.0/16}
-    bash install-cni.sh
+    log_step "5/5 Install Calico CNI"
+    CLUSTER_CIDR="$CLUSTER_CIDR" CALICO_VERSION="$CALICO_VERSION" bash install-cni.sh
+    log_ok "Calico installed"
+
+    echo -e "\n[ OK ] Cluster setup completed successfully."
 else
-    echo "Skipping cluster initialization since this is not a control-plane node"
-    echo "Please run 'kubeadm join' on this node to join the cluster after initializing the control-plane node"
+    log_info "Skipping control-plane initialization on this node."
+    log_info "Run the kubeadm join command from the control-plane output to join as worker."
 fi
