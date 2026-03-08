@@ -48,6 +48,9 @@ EOF
 sudo apt-get update -y
 sudo apt-get remove -y containerd runc || true
 sudo apt-get install -y containerd.io
+
+rm -f /etc/containerd/config.toml
+sudo systemctl restart containerd
 log_ok "containerd.io package installed"
 
 log_step "Enable and restart containerd service"
