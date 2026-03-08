@@ -19,7 +19,7 @@ log_error() { echo "[ERR ] $1" >&2; }
 
 trap 'log_error "Kubernetes component setup failed near line $LINENO."' ERR
 
-log_info "Starting Kubernetes component installation for Ubuntu 24.04"
+log_info "Starting Kubernetes component installation"
 
 log_step "Install repository prerequisites"
 sudo apt-get update -y

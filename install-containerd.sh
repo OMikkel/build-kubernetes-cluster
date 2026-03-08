@@ -9,7 +9,7 @@ log_error() { echo "[ERR ] $1" >&2; }
 
 trap 'log_error "Containerd setup failed near line $LINENO."' ERR
 
-log_info "Starting containerd installation for Ubuntu 24.04"
+log_info "Starting containerd installation"
 
 log_step "Load required kernel modules"
 cat <<EOF | sudo tee /etc/modules-load.d/k8s.conf >/dev/null

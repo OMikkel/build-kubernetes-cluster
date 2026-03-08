@@ -12,18 +12,20 @@ log_error() { echo "[ERR ] $1" >&2; }
 
 trap 'log_error "Installation failed near line $LINENO."' ERR
 
-read -rp "This script will install Kubernetes ${KUBE_VERSION} with Calico ${CALICO_VERSION} on Ubuntu 24.04. Do you want to proceed? (y/n) " PROCEED
-if [[ "$PROCEED" != "y" && "$PROCEED" != "Y" ]]; then
-    log_info "Installation aborted by user."
-    exit 0
-fi
+
 
 read -p "Please enter the desired Kubernetes version (default: ${KUBE_VERSION}): " KUBE_VERSION
 KUBE_VERSION=${KUBE_VERSION:-$KUBE_VERSION}
 read -p "Please enter the desired Calico version (default: ${CALICO_VERSION}): " CALICO_VERSION
 CALICO_VERSION=${CALICO_VERSION:-$CALICO_VERSION}
 
-log_info "Installing Kubernetes ${KUBE_VERSION} on Ubuntu 24.04"
+read -rp "This script will install Kubernetes ${KUBE_VERSION} with Calico ${CALICO_VERSION}. Do you want to proceed? (y/n) " PROCEED
+if [[ "$PROCEED" != "y" && "$PROCEED" != "Y" ]]; then
+    log_info "Installation aborted by user."
+    exit 0
+fi
+
+log_info "Installing Kubernetes ${KUBE_VERSION}"
 
 log_step "1/5 Install containerd"
 bash install-containerd.sh

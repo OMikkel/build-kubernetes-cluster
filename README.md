@@ -4,7 +4,7 @@ A set of scripts to initialise a new standard Kubernetes cluster running Kuberne
 
 ## Requirements
 
-- Ubuntu 24.04
+- Ubuntu 24.04 or later on all nodes
 - Root or sudo access
 - Network connectivity between all nodes
 
