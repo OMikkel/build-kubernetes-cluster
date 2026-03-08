@@ -72,6 +72,7 @@ EOF
     mkdir -p "$HOME/.kube"
     sudo cp /etc/kubernetes/admin.conf "$HOME/.kube/config"
     sudo chown "$(id -u):$(id -g)" "$HOME/.kube/config"
+    export KUBECONFIG="$HOME/.kube/config"
     log_ok "Kubeconfig configured"
 
     log_step "5/5 Install Calico CNI"

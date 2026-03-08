@@ -18,10 +18,29 @@ if ! command -v kubectl >/dev/null 2>&1; then
     exit 1
 fi
 
-if ! kubectl cluster-info >/dev/null 2>&1; then
-    log_error "Kubernetes API is not reachable. Ensure control-plane is initialized and kubeconfig is configured."
+# Ensure kubectl has a kubeconfig in script/non-interactive contexts
+if [[ -z "${KUBECONFIG:-}" && -f "$HOME/.kube/config" ]]; then
+    export KUBECONFIG="$HOME/.kube/config"
+elif [[ -z "${KUBECONFIG:-}" && -f /etc/kubernetes/admin.conf ]]; then
+    export KUBECONFIG=/etc/kubernetes/admin.conf
+fi
+
+log_step "Wait for Kubernetes API to become reachable"
+API_READY=0
+for attempt in {1..24}; do
+    if kubectl cluster-info >/dev/null 2>&1; then
+        API_READY=1
+        break
+    fi
+    sleep 5
+done
+
+if [[ "$API_READY" -ne 1 ]]; then
+    log_error "Kubernetes API is not reachable after waiting 120 seconds."
+    log_info "Try: kubectl --kubeconfig /etc/kubernetes/admin.conf cluster-info"
     exit 1
 fi
+log_ok "Kubernetes API reachable"
 
 log_step "Install Calico operator CRDs"
 kubectl apply -f "https://raw.githubusercontent.com/projectcalico/calico/${CALICO_VERSION}/manifests/operator-crds.yaml"

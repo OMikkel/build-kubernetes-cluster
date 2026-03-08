@@ -86,3 +86,9 @@ Status: `install.sh` now stops immediately if `install-k8s.sh` fails, so the scr
 Cause: CNI step started before Kubernetes components were installed or before kubeconfig/API access was ready.
 
 Status: `install-cni.sh` now validates `kubectl` exists and that the Kubernetes API is reachable before continuing.
+
+### `Kubernetes API is not reachable` immediately after `kubeadm init`
+
+Cause: Short timing window where control-plane/API is still settling while the CNI step starts.
+
+Status: `install-cni.sh` now auto-detects kubeconfig and waits/retries for API readiness (up to 120s) before installing Calico.
