@@ -2,7 +2,15 @@
 
 set -Eeuo pipefail
 
-K8S_CHANNEL="${K8S_CHANNEL:-v1.35}"
+KUBE_VERSION_RAW="${KUBE_VERSION:-1.35.2}"
+KUBE_VERSION_CLEAN="${KUBE_VERSION_RAW#v}"
+
+if [[ "$KUBE_VERSION_CLEAN" =~ ^([0-9]+)\.([0-9]+)(\.[0-9]+)?$ ]]; then
+    K8S_CHANNEL="v${BASH_REMATCH[1]}.${BASH_REMATCH[2]}"
+else
+    echo "[ERR ] Invalid KUBE_VERSION format: ${KUBE_VERSION_RAW}. Expected like 1.35.2 or v1.35.2" >&2
+    exit 1
+fi
 
 log_info() { echo "[INFO] $1"; }
 log_step() { echo -e "\n[STEP] $1"; }
