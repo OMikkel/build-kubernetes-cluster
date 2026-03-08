@@ -43,11 +43,11 @@ fi
 log_ok "Kubernetes API reachable"
 
 log_step "Install Calico operator CRDs"
-kubectl apply -f "https://raw.githubusercontent.com/projectcalico/calico/${CALICO_VERSION}/manifests/operator-crds.yaml"
+kubectl create -f "https://raw.githubusercontent.com/projectcalico/calico/${CALICO_VERSION}/manifests/operator-crds.yaml"
 log_ok "CRDs applied"
 
 log_step "Install Tigera operator"
-kubectl apply -f "https://raw.githubusercontent.com/projectcalico/calico/${CALICO_VERSION}/manifests/tigera-operator.yaml"
+kubectl create -f "https://raw.githubusercontent.com/projectcalico/calico/${CALICO_VERSION}/manifests/tigera-operator.yaml"
 log_ok "Tigera operator applied"
 
 log_step "Download Calico custom resources"
@@ -69,7 +69,7 @@ sed -i "s#192.168.0.0/16#${CLUSTER_CIDR}#g" custom-resources.yaml
 log_ok "CIDR updated"
 
 log_step "Apply Calico custom resources"
-kubectl apply -f custom-resources.yaml
+kubectl create -f custom-resources.yaml
 log_ok "Calico installed successfully"
 
 log_info "Check status with: watch kubectl get tigerastatus"
