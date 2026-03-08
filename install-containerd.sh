@@ -31,7 +31,7 @@ log_ok "Kernel networking configured"
 
 log_step "Install containerd package"
 sudo apt-get update -y
-sudo apt-get install -y ca-certificates curl gnupg lsb-release
+sudo apt-get install -y ca-certificates curl gnupg
 sudo install -m 0755 -d /etc/apt/keyrings
 sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
 sudo chmod a+r /etc/apt/keyrings/docker.asc
@@ -40,19 +40,21 @@ sudo chmod a+r /etc/apt/keyrings/docker.asc
 sudo tee /etc/apt/sources.list.d/docker.sources >/dev/null <<EOF
 Types: deb
 URIs: https://download.docker.com/linux/ubuntu
-Suites: ${UBUNTU_CODENAME}
+Suites: ${UBUNTU_CODENAME:-$VERSION_CODENAME}
 Components: stable
 Signed-By: /etc/apt/keyrings/docker.asc
 EOF
 
 sudo apt-get update -y
-sudo apt-get remove -y containerd || true
-sudo apt-get -y install containerd.io
+sudo apt-get remove -y containerd runc || true
+sudo apt-get install -y containerd.io
 log_ok "containerd.io package installed"
 
 log_step "Configure containerd"
 sudo mkdir -p /etc/containerd
 containerd config default | sudo tee /etc/containerd/config.toml >/dev/null
+# Ensure CRI plugin is enabled for Kubernetes (some package configs disable it)
+sudo sed -i '/^disabled_plugins = \[.*"cri".*\]/d' /etc/containerd/config.toml
 sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
 sudo sed -i 's#sandbox_image = "registry.k8s.io/pause:3.8"#sandbox_image = "registry.k8s.io/pause:3.10.1"#' /etc/containerd/config.toml
 log_ok "Containerd configuration written"
@@ -85,7 +87,21 @@ if ! ctr version >/dev/null 2>&1; then
 	exit 1
 fi
 
+CRI_LINE="$(sudo ctr plugins ls 2>/dev/null | awk '/io.containerd.grpc.v1.cri|io.containerd.cri.v1.runtime/ {print; exit}')"
+if [[ -z "$CRI_LINE" ]]; then
+	log_error "CRI plugin not detected in containerd. kubeadm will fail to connect to RuntimeService."
+	sudo ctr plugins ls || true
+	exit 1
+fi
+
+if ! grep -Eq '\bok\b' <<<"$CRI_LINE"; then
+	log_error "CRI plugin found but not healthy: $CRI_LINE"
+	sudo ctr plugins ls || true
+	exit 1
+fi
+
 log_ok "containerd socket is available"
 log_ok "ctr can communicate with containerd"
+log_ok "CRI plugin is available"
 
 log_ok "Containerd installation complete"
