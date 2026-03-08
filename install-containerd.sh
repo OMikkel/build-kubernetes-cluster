@@ -50,15 +50,6 @@ sudo apt-get remove -y containerd runc || true
 sudo apt-get install -y containerd.io
 log_ok "containerd.io package installed"
 
-log_step "Configure containerd"
-sudo mkdir -p /etc/containerd
-containerd config default | sudo tee /etc/containerd/config.toml >/dev/null
-# Ensure CRI plugin is enabled for Kubernetes (some package configs disable it)
-sudo sed -i '/^disabled_plugins = \[.*"cri".*\]/d' /etc/containerd/config.toml
-sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
-sudo sed -i 's#sandbox_image = "registry.k8s.io/pause:3.8"#sandbox_image = "registry.k8s.io/pause:3.10.1"#' /etc/containerd/config.toml
-log_ok "Containerd configuration written"
-
 log_step "Enable and restart containerd service"
 sudo systemctl daemon-reload
 sudo systemctl enable --now containerd
@@ -87,16 +78,16 @@ if ! ctr version >/dev/null 2>&1; then
 	exit 1
 fi
 
-CRI_RUNTIME_LINE="$(sudo ctr plugins ls 2>/dev/null | awk '
-	(
-	  ($1 == "io.containerd.cri.v1" && $2 == "runtime") ||
-	  ($1 == "io.containerd.grpc.v1" && $2 == "cri")
-	) { print; exit }
-')"
+PLUGIN_LIST="$(sudo ctr plugins ls 2>/dev/null || true)"
+CRI_RUNTIME_LINE="$(awk '$1=="io.containerd.cri.v1"&&$2=="runtime" || $1=="io.containerd.grpc.v1"&&$2=="cri" { print; exit }' <<<"$PLUGIN_LIST")"
 
 if [[ -z "$CRI_RUNTIME_LINE" ]]; then
 	log_error "CRI runtime plugin not detected in containerd. kubeadm will fail to connect to RuntimeService."
-	sudo ctr plugins ls || true
+	if [[ -n "$PLUGIN_LIST" ]]; then
+		echo "$PLUGIN_LIST"
+	else
+		sudo ctr plugins ls || true
+	fi
 	exit 1
 fi
 
